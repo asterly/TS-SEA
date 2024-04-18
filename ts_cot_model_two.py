@@ -59,7 +59,122 @@ class TS_CoT(nn.Module):
         self.cluster_result = None
         self.batch_size = args.batch_size
 
+    def init_cluster(self,train_data,train_loader,last_clusters):
+        features = self.encode(train_data )
+        feature_split = int(features.shape[1]/2)
+        features_tem = features[:, :feature_split]
+        features_fre = features[:, feature_split:]
 
+        cluster_result_tem =  {'im2cluster': [], 'centroids': [], 'density': [], 'ma_centroids':[]}
+        cluster_result_fre = {'im2cluster': [], 'centroids': [], 'density': [],  'ma_centroids':[]}
+
+        for num_cluster in self.args.num_cluster:
+            cluster_result_tem['im2cluster'].append(torch.zeros(len(train_loader), dtype=torch.long).cuda())
+            cluster_result_fre['im2cluster'].append(torch.zeros(len(train_loader), dtype=torch.long).cuda())
+            cluster_result_tem['centroids'].append(
+                torch.zeros(int(num_cluster), train_data[0].shape[1] * self.args.repr_dims).cuda())
+            cluster_result_fre['centroids'].append(
+                torch.zeros(int(num_cluster), train_data[0].shape[1] * self.args.repr_dims).cuda())
+            cluster_result_tem['density'].append(torch.zeros(int(num_cluster)).cuda())
+            cluster_result_fre['density'].append(torch.zeros(int(num_cluster)).cuda())
+            cluster_result_tem = run_kmeans(features_tem, self.args, last_clusters)
+            cluster_result_fre = run_kmeans(features_fre, self.args, last_clusters)
+
+        for tmp in range(len(self.args.num_cluster)):
+            tem_im2cluster = cluster_result_tem['im2cluster'][tmp]
+            fre_im2cluster = cluster_result_fre['im2cluster'][tmp]
+            dist_tem = cluster_result_tem['distance_2_center'][tmp]
+            dist_fre = cluster_result_fre['distance_2_center'][tmp]
+            print("=="*50)
+            print(tem_im2cluster)
+            print(fre_im2cluster)
+            tmp_cluster = self.args.num_cluster[tmp]
+            for tmpp in range(int(tmp_cluster)):
+                sort_tem_index = np.array(np.argsort(dist_tem[:,tmpp])) #
+                sort_fre_index = np.array(np.argsort(dist_fre[:,tmpp])) #
+                sort_tem_index = sort_tem_index[:int(0.8*len(np.array(torch.where(tem_im2cluster == tmpp)[0].cpu())))]
+                sort_fre_index = sort_fre_index[:int(0.8*len(np.array(torch.where(fre_im2cluster == tmpp)[0].cpu())))]
+
+                set_tem = np.intersect1d(np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), sort_tem_index)
+                set_fre = np.intersect1d(np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), sort_fre_index)
+                neg_tem = np.setdiff1d(np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), sort_tem_index)
+                neg_fre = np.setdiff1d(np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), sort_fre_index)
+                if len(neg_tem) > 0 and len(set_tem) > 0:
+                    tem_im2cluster[neg_tem] = -1
+                if len(neg_fre) > 0 and len(set_fre) > 0:
+                    fre_im2cluster[neg_fre] = -1
+                cluster_result_fre['centroids'][tmp][tmpp, :] = torch.mean(
+                    torch.tensor(features_fre[np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), :]),
+                    0).cuda() / torch.norm(torch.mean(
+                    torch.tensor(features_fre[np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), :]),
+                    0).cuda())
+                cluster_result_tem['centroids'][tmp][tmpp, :] = torch.mean(
+                    torch.tensor(features_tem[np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), :]),
+                    0).cuda() / torch.norm(torch.mean(
+                    torch.tensor(features_tem[np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), :]),
+                    0).cuda())
+        cluster_result_tem['ma_centroids'] = cluster_result_tem['centroids']
+        cluster_result_fre['ma_centroids'] = cluster_result_fre['centroids']
+        return cluster_result_tem, cluster_result_fre
+    
+    def warmup_cluster(self,train_data,train_loader,last_clusters,cluster_result_tem,cluster_result_fre):
+        features = self.encode(train_data )
+        feature_split = int(features.shape[1]/2)
+        features_tem = features[:, :feature_split]
+        features_fre = features[:, feature_split:]
+        for jj in range(len(self.args.num_cluster)):
+            ma_centroids_tem = cluster_result_tem['ma_centroids'][jj]/torch.norm(cluster_result_tem['ma_centroids'][jj], dim=1, keepdim=True)
+            cp_tem = torch.matmul(torch.tensor(features_tem).cuda(), ma_centroids_tem.transpose(1, 0))
+            cluster_result_tem['im2cluster'][jj] = torch.argmax(cp_tem, dim=1)
+            cluster_result_tem['distance_2_center'][jj] = 1-cp_tem.cpu().numpy()
+            ma_centroids_fre = cluster_result_fre['ma_centroids'][jj]/torch.norm(cluster_result_fre['ma_centroids'][jj], dim=1, keepdim=True)
+            cp_fre = torch.matmul(torch.tensor(features_fre).cuda(), ma_centroids_fre.transpose(1, 0))
+            cluster_result_fre['im2cluster'][jj] = torch.argmax(cp_fre, dim=1)
+            cluster_result_fre['distance_2_center'][jj] = 1-cp_fre.cpu().numpy()
+            cluster_result_tem['density'][jj] = torch.ones(cluster_result_tem['density'][jj].shape).cuda()
+            cluster_result_fre['density'][jj] = torch.ones(cluster_result_fre['density'][jj].shape).cuda()
+
+        cluster_result_tem = run_kmeans(features_tem, self.args, last_clusters)
+        cluster_result_fre = run_kmeans(features_fre, self.args, last_clusters)
+        print("*"*100)
+        for tmp in range(len(self.args.num_cluster)):
+            
+            tem_im2cluster = cluster_result_tem['im2cluster'][tmp]
+            fre_im2cluster = cluster_result_fre['im2cluster'][tmp]
+
+            dist_tem = cluster_result_tem['distance_2_center'][tmp]
+            dist_fre = cluster_result_fre['distance_2_center'][tmp]
+            tmp_cluster = self.args.num_cluster[tmp]
+            for tmpp in range(int(tmp_cluster)):
+                keep_ratio = 1
+                sort_tem_index = np.array(np.argsort(dist_tem[:,tmpp])) # 前面的距离小
+                sort_fre_index = np.array(np.argsort(dist_fre[:,tmpp])) #
+                sort_tem_index = sort_tem_index[:int(keep_ratio*len(np.array(torch.where(tem_im2cluster == tmpp)[0].cpu())))]
+                sort_fre_index = sort_fre_index[:int(keep_ratio*len(np.array(torch.where(fre_im2cluster == tmpp)[0].cpu())))]
+                set_tem = np.intersect1d(np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), sort_tem_index)
+                set_fre = np.intersect1d(np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), sort_fre_index)
+                neg_tem = np.setdiff1d(np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), sort_tem_index)
+                neg_fre = np.setdiff1d(np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), sort_fre_index)
+
+                if len(neg_tem) > 0 and len(set_tem) > 0:
+                    tem_im2cluster[neg_tem] = -1
+                if len(neg_fre) > 0 and len(set_fre) > 0:
+                    fre_im2cluster[neg_fre] = -1
+
+                cluster_result_fre['centroids'][tmp][tmpp, :] = torch.mean(
+                    torch.tensor(features_fre[np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), :]),
+                    0).cuda() / torch.norm(torch.mean(
+                    torch.tensor(features_fre[np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), :]),
+                    0).cuda())
+                cluster_result_tem['centroids'][tmp][tmpp, :] = torch.mean(
+                    torch.tensor(features_tem[np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), :]),
+                    0).cuda() / torch.norm(torch.mean(
+                    torch.tensor(features_tem[np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), :]),
+                    0).cuda())
+        cluster_result_tem['ma_centroids'] = cluster_result_tem['centroids']
+        cluster_result_fre['ma_centroids'] = cluster_result_fre['centroids']
+        return cluster_result_tem,cluster_result_fre
+    
     def fit_ts_cot(self, train_data, n_epochs=None,logger=None):
 
         train_dataset1 = TwoViewloader(train_data)
@@ -85,118 +200,10 @@ class TS_CoT(nn.Module):
             batch_loss_proto_fre = [0.0]
 
             if self.n_epochs == max(int(self.args.warmup), 0):
-                features = self.encode(train_data )
-                feature_split = int(features.shape[1]/2)
-                features_tem = features[:, :feature_split]
-                features_fre = features[:, feature_split:]
-
-                cluster_result_tem =  {'im2cluster': [], 'centroids': [], 'density': [], 'ma_centroids':[]}
-                cluster_result_fre = {'im2cluster': [], 'centroids': [], 'density': [],  'ma_centroids':[]}
-
-                for num_cluster in self.args.num_cluster:
-                    cluster_result_tem['im2cluster'].append(torch.zeros(len(train_loader), dtype=torch.long).cuda())
-                    cluster_result_fre['im2cluster'].append(torch.zeros(len(train_loader), dtype=torch.long).cuda())
-                    cluster_result_tem['centroids'].append(
-                        torch.zeros(int(num_cluster), train_data[0].shape[1] * self.args.repr_dims).cuda())
-                    cluster_result_fre['centroids'].append(
-                        torch.zeros(int(num_cluster), train_data[0].shape[1] * self.args.repr_dims).cuda())
-                    cluster_result_tem['density'].append(torch.zeros(int(num_cluster)).cuda())
-                    cluster_result_fre['density'].append(torch.zeros(int(num_cluster)).cuda())
-                    cluster_result_tem = run_kmeans(features_tem, self.args, last_clusters)
-                    cluster_result_fre = run_kmeans(features_fre, self.args, last_clusters)
-
-                for tmp in range(len(self.args.num_cluster)):
-                    tem_im2cluster = cluster_result_tem['im2cluster'][tmp]
-                    fre_im2cluster = cluster_result_fre['im2cluster'][tmp]
-                    dist_tem = cluster_result_tem['distance_2_center'][tmp]
-                    dist_fre = cluster_result_fre['distance_2_center'][tmp]
-                    print("=="*50)
-                    print(tem_im2cluster)
-                    print(fre_im2cluster)
-                    tmp_cluster = self.args.num_cluster[tmp]
-                    for tmpp in range(int(tmp_cluster)):
-                        sort_tem_index = np.array(np.argsort(dist_tem[:,tmpp])) #
-                        sort_fre_index = np.array(np.argsort(dist_fre[:,tmpp])) #
-                        sort_tem_index = sort_tem_index[:int(0.8*len(np.array(torch.where(tem_im2cluster == tmpp)[0].cpu())))]
-                        sort_fre_index = sort_fre_index[:int(0.8*len(np.array(torch.where(fre_im2cluster == tmpp)[0].cpu())))]
-
-                        set_tem = np.intersect1d(np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), sort_tem_index)
-                        set_fre = np.intersect1d(np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), sort_fre_index)
-                        neg_tem = np.setdiff1d(np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), sort_tem_index)
-                        neg_fre = np.setdiff1d(np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), sort_fre_index)
-                        if len(neg_tem) > 0 and len(set_tem) > 0:
-                            tem_im2cluster[neg_tem] = -1
-                        if len(neg_fre) > 0 and len(set_fre) > 0:
-                            fre_im2cluster[neg_fre] = -1
-                        cluster_result_fre['centroids'][tmp][tmpp, :] = torch.mean(
-                            torch.tensor(features_fre[np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), :]),
-                            0).cuda() / torch.norm(torch.mean(
-                            torch.tensor(features_fre[np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), :]),
-                            0).cuda())
-                        cluster_result_tem['centroids'][tmp][tmpp, :] = torch.mean(
-                            torch.tensor(features_tem[np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), :]),
-                            0).cuda() / torch.norm(torch.mean(
-                            torch.tensor(features_tem[np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), :]),
-                            0).cuda())
-                cluster_result_tem['ma_centroids'] = cluster_result_tem['centroids']
-                cluster_result_fre['ma_centroids'] = cluster_result_fre['centroids']
+                cluster_result_tem,cluster_result_fre = self.init_cluster(train_data,train_loader,last_clusters)
 
             if self.n_epochs > max(int(self.args.warmup), 0):
-                features = self.encode(train_data )
-                feature_split = int(features.shape[1]/2)
-                features_tem = features[:, :feature_split]
-                features_fre = features[:, feature_split:]
-                for jj in range(len(self.args.num_cluster)):
-                    ma_centroids_tem = cluster_result_tem['ma_centroids'][jj]/torch.norm(cluster_result_tem['ma_centroids'][jj], dim=1, keepdim=True)
-                    cp_tem = torch.matmul(torch.tensor(features_tem).cuda(), ma_centroids_tem.transpose(1, 0))
-                    cluster_result_tem['im2cluster'][jj] = torch.argmax(cp_tem, dim=1)
-                    cluster_result_tem['distance_2_center'][jj] = 1-cp_tem.cpu().numpy()
-                    ma_centroids_fre = cluster_result_fre['ma_centroids'][jj]/torch.norm(cluster_result_fre['ma_centroids'][jj], dim=1, keepdim=True)
-                    cp_fre = torch.matmul(torch.tensor(features_fre).cuda(), ma_centroids_fre.transpose(1, 0))
-                    cluster_result_fre['im2cluster'][jj] = torch.argmax(cp_fre, dim=1)
-                    cluster_result_fre['distance_2_center'][jj] = 1-cp_fre.cpu().numpy()
-                    cluster_result_tem['density'][jj] = torch.ones(cluster_result_tem['density'][jj].shape).cuda()
-                    cluster_result_fre['density'][jj] = torch.ones(cluster_result_fre['density'][jj].shape).cuda()
-
-                cluster_result_tem = run_kmeans(features_tem, self.args, last_clusters)
-                cluster_result_fre = run_kmeans(features_fre, self.args, last_clusters)
-                print("*"*100)
-                for tmp in range(len(self.args.num_cluster)):
-                    
-                    tem_im2cluster = cluster_result_tem['im2cluster'][tmp]
-                    fre_im2cluster = cluster_result_fre['im2cluster'][tmp]
-
-                    dist_tem = cluster_result_tem['distance_2_center'][tmp]
-                    dist_fre = cluster_result_fre['distance_2_center'][tmp]
-                    tmp_cluster = self.args.num_cluster[tmp]
-                    for tmpp in range(int(tmp_cluster)):
-                        keep_ratio = 1
-                        sort_tem_index = np.array(np.argsort(dist_tem[:,tmpp])) # 前面的距离小
-                        sort_fre_index = np.array(np.argsort(dist_fre[:,tmpp])) #
-                        sort_tem_index = sort_tem_index[:int(keep_ratio*len(np.array(torch.where(tem_im2cluster == tmpp)[0].cpu())))]
-                        sort_fre_index = sort_fre_index[:int(keep_ratio*len(np.array(torch.where(fre_im2cluster == tmpp)[0].cpu())))]
-                        set_tem = np.intersect1d(np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), sort_tem_index)
-                        set_fre = np.intersect1d(np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), sort_fre_index)
-                        neg_tem = np.setdiff1d(np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), sort_tem_index)
-                        neg_fre = np.setdiff1d(np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), sort_fre_index)
-
-                        if len(neg_tem) > 0 and len(set_tem) > 0:
-                            tem_im2cluster[neg_tem] = -1
-                        if len(neg_fre) > 0 and len(set_fre) > 0:
-                            fre_im2cluster[neg_fre] = -1
-
-                        cluster_result_fre['centroids'][tmp][tmpp, :] = torch.mean(
-                            torch.tensor(features_fre[np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), :]),
-                            0).cuda() / torch.norm(torch.mean(
-                            torch.tensor(features_fre[np.array(torch.where(tem_im2cluster == tmpp)[0].cpu()), :]),
-                            0).cuda())
-                        cluster_result_tem['centroids'][tmp][tmpp, :] = torch.mean(
-                            torch.tensor(features_tem[np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), :]),
-                            0).cuda() / torch.norm(torch.mean(
-                            torch.tensor(features_tem[np.array(torch.where(fre_im2cluster == tmpp)[0].cpu()), :]),
-                            0).cuda())
-                cluster_result_tem['ma_centroids'] = cluster_result_tem['centroids']
-                cluster_result_fre['ma_centroids'] = cluster_result_fre['centroids']
+                cluster_result_tem,cluster_result_fre = self.warmup_cluster(train_data,train_loader,last_clusters,cluster_result_tem,cluster_result_fre)
 
             tq_bar = tqdm(train_loader) 
             # nt_xent_criterion = NTXentLoss(self.device, self.args.batch_size, self.args.Context_Cont.temperature,
