@@ -7,19 +7,34 @@
 # done  "50p" "75p"
 
 
-lab_percs=("256")
+# lab_percs=("32" "64" "128" "256" "512" "1024")
+
+# for lab_perc in "${lab_percs[@]}"
+# do
+#     # 
+#     python train_ts_cot.py --dataset HAR --gpu 2 --run_desc repr_dim_$lab_perc --backbone_type TS_SEA   --batch_size  256 --decomp_mode generate --repr-dims $lab_perc
+#     python train_ts_cot.py --dataset Epilepsy --gpu 2 --run_desc repr_dim_$lab_perc --backbone_type TS_SEA   --batch_size  256 --decomp_mode generate --repr-dims $lab_percv
+#     # python train_ts_cot.py --dataset ISRUC --gpu 2 --run_desc mov_multi_$lab_perc --backbone_type TS_SEA --batch_size  256 --decomp_mode generate --repr-dims $lab_perc
+#     # python train_ts_cot.py --dataset ISRUC --gpu 1 --run_desc tri_view_$lab_perc --data_perc $lab_perc"erc"  --backbone_type TS_SEA
+#     # python train_ts_cot.py --dataset Epilepsy --gpu 1 --run_desc tri_view_$lab_perc --data_perc $lab_perc"erc"  --backbone_type TS_SEA
+    
+# done
+
+
+lab_percs=( "0.001" "0.01" "0.05" "0.1" "0.5" "1")
 
 for lab_perc in "${lab_percs[@]}"
 do
     # 
-    python train_ts_cot.py --dataset HAR --gpu 0 --run_desc batch_size --backbone_type TS_SEA   --batch_size  $lab_percs
-    python train_ts_cot.py --dataset Epilepsy --gpu 0 --run_desc batch_size --backbone_type TS_SEA   --batch_size  $lab_percs
-    python train_ts_cot.py --dataset ISRUC --gpu 0 --run_desc batch_size --backbone_type TS_SEA --batch_size  $lab_percs
-    # python train_ts_cot.py --dataset ISRUC --gpu 1 --run_desc tri_view_$lab_perc --data_perc $lab_perc"erc"  --backbone_type TS_SEA
+    # python train_ts_cot.py --dataset HAR --gpu 2 --run_desc prototype_lambda$lab_perc --backbone_type TS_SEA   --batch_size  256 --decomp_mode generate --prototype-lambda $lab_perc
+    # python train_ts_cot.py --dataset Epilepsy --gpu 2 --run_desc prototype_lambda$lab_perc --backbone_type TS_SEA   --batch_size  256 --decomp_mode generate --prototype-lambda $lab_perc
+    python train_ts_cot.py --dataset Epilepsy --gpu 2 --run_desc temperature --backbone_type TS_SEA   --batch_size 256 --decomp_mode generate --temperature $lab_perc
+    python train_ts_cot.py --dataset HAR --gpu 2 --run_desc temperature --backbone_type TS_SEA   --batch_size 256 --decomp_mode generate  --temperature $lab_perc
+    python train_ts_cot.py --dataset ISRUC --gpu 2 --run_desc temperature --backbone_type TS_SEA   --batch_size 256 --decomp_mode generate --temperature $lab_perc
+    # python train_ts_cot.py --dataset ISRUC --gpu 2 --run_desc mov_multi_$lab_perc --backbone_type TS_SEA --batch_size  256 --decomp_mode generate --repr-dims $lab_perc
+    # python train_ts_cot.py --dataset ISRUC --gpu 1 --run_desc edf --decomp_mode generate --batch_size 512 --backbone_type TS_SEA --repr-dim 512
     # python train_ts_cot.py --dataset Epilepsy --gpu 1 --run_desc tri_view_$lab_perc --data_perc $lab_perc"erc"  --backbone_type TS_SEA
-    # python3 main.py --experiment_description $exp_desc --run_description $run --seed $i --selected_dataset $dataset --training_mode "ft_$lab_perc"   --device $device 
-    # python3 main.py --experiment_description $exp_desc --run_description $run --seed $i --selected_dataset $dataset --training_mode "gen_pseudo_labels" 
-    # python3 main.py --experiment_description $exp_desc --run_description $run --seed $i --selected_dataset $dataset --training_mode "SupCon" 
-    # python3 main.py --experiment_description $exp_desc --run_description $run --seed $i --selected_dataset $dataset --training_mode "train_linear_SupCon_$lab_perc" 
     
 done
+
+#python train_ts_cot_semi.py --dataset HAR --dataloader HAR  --gpu 2 --run_desc semi --data_perc 10perc

@@ -29,28 +29,28 @@ class TS_SEA(nn.Module):
         self.hidden_dims = hidden_dims
         self.output_dims = output_dims
 
-        if args.dataset == 'SleepEDF':
+        if args.dataloader == 'SleepEDF':
             self.tem_encoder = Conv_Pyram_model_EDF(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.fre_encoder = Conv_Pyram_model_EDF(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.sea_encoder = Conv_Pyram_model_EDF(input_dims=input_dims, output_dims=output_dims).to(self.device)
-        elif args.dataset == 'HAR' or args.dataset == 'UEA':
+        elif args.dataloader == 'HAR' or args.dataloader == 'UEA' or args.dataloader=="UCR":
             self.tem_encoder = Conv_Pyram_model_HAR(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.fre_encoder = Conv_Pyram_model_HAR(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.sea_encoder = Conv_Pyram_model_HAR(input_dims=input_dims, output_dims=output_dims).to(self.device)
-        elif args.dataset == 'Epilepsy':
+        elif args.dataloader == 'Epilepsy':
             self.tem_encoder = Conv_Pyram_model_Epi(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.fre_encoder = Conv_Pyram_model_Epi(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.sea_encoder = Conv_Pyram_model_Epi(input_dims=input_dims, output_dims=output_dims).to(self.device)
-        elif args.dataset == 'Waveform':
+        elif args.dataloader == 'Waveform':
             self.tem_encoder = Conv_Pyram_model_Epi(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.fre_encoder = Conv_Pyram_model_Epi(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.sea_encoder = Conv_Pyram_model_Epi(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.sea_encoder = Conv_Pyram_model_Epi(input_dims=input_dims, output_dims=output_dims).to(self.device)
-        elif args.dataset == 'ISRUC':
+        elif args.dataloader == 'ISRUC':
             self.tem_encoder = Conv_Pyram_model_ISRUC(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.fre_encoder = Conv_Pyram_model_ISRUC(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.sea_encoder = Conv_Pyram_model_ISRUC(input_dims=input_dims, output_dims=output_dims).to(self.device)
-        elif args.dataset == 'RoadBank' or args.dataset == "Bridge":
+        elif args.dataloader == 'RoadBank' or args.dataloader == "Bridge":
             self.tem_encoder = Conv_Pyram_model_ISRUC(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.fre_encoder = Conv_Pyram_model_ISRUC(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.sea_encoder = Conv_Pyram_model_ISRUC(input_dims=input_dims, output_dims=output_dims).to(self.device)

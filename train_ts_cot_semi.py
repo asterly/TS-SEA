@@ -57,6 +57,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--dataset', type=str, required=True,
                         help='The experimental dataset to be used: HAR, Epi, SleepEDF, Waveform.')
+    parser.add_argument('--dataloader', type=str, required=True,
+                        help='The experimental dataset to be used: HAR, Epi, SleepEDF, Waveform.')
     parser.add_argument('--gpu', type=int, default=0, help='The experimental GPU index.')
     parser.add_argument('--max-threads', type=int, default=8, help='The maximum threads')
     parser.add_argument('--batch-size', type=int, default=32, help='Batch size')

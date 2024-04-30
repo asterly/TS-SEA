@@ -4,7 +4,7 @@ class Param(object):
         #self.batch_size = 512
         self.lr = 0.001
         self.repr_dims = 512
-        self.epochs = 60
+        self.epochs = 40
         self.num_cluster = '5,10'
         #self.backbone_type = 'TS_CoT'
         #self.model_path = "pretrained_model/Waveform_model.pkl"

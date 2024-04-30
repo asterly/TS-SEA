@@ -57,6 +57,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--dataset', type=str, required=True,
                         help='The experimental dataset to be used: HAR, Epi, SleepEDF, Waveform.')
+    parser.add_argument('--dataloader', type=str, default=None, help='data loader')
     parser.add_argument('--gpu', type=int, default=0, help='The experimental GPU index.')
     parser.add_argument('--max-threads', type=int, default=8, help='The maximum threads')
     parser.add_argument('--batch-size', type=int, default=32, help='Batch size')
@@ -79,6 +80,10 @@ if __name__ == '__main__':
     parser.add_argument('--data_perc', default="train", type=str, help='a numer of labeling data')
     parser.add_argument('--decomp_mode', default="seasonal", type=str, help='The mode of to select decomposed mode')
     args = parser.parse_args()
+
+    if args.dataloader is None :
+        args.dataloader = args.dataset
+
     experiment_log_dir = os.path.join("exp_logs", args.run_desc, args.dataset,args.backbone_type)
     os.makedirs(experiment_log_dir, exist_ok=True)
     # Logging
@@ -98,7 +103,7 @@ if __name__ == '__main__':
         logger.info('Unknown Backbone')
         raise Exception("Unknown Backbone")
 
-    args = load_config(args.dataset, args)
+    args = load_config(args.dataloader, args)
     args.num_cluster = args.num_cluster.split(',')
 
     now = datetime.now().strftime("%Y%m%d_%H%M%S")

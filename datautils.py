@@ -580,6 +580,7 @@ def load_isruc_two_view(mode="train",dataset="ISRUC",decompose_mode=None):
     train_X = train_['samples']
     # train = torch.transpose(train, 1, 2)
     train_y = train_['labels']
+    print(train_X.shape)
     train_X = torch.transpose(train_X,2,1)
     print(train_X.shape)
 
@@ -645,7 +646,11 @@ def load_isruc_two_view(mode="train",dataset="ISRUC",decompose_mode=None):
         test_resid_ = torch.load(data_path + "test_resid.pt")
         train_X_sea = train_resid_['samples']
         test_X_sea = test_resid_['samples']
-    else:
+    elif decompose_mode == "generate":
+        decomp_period = 40
+        if dataset=="ISRUC":
+            decomp_period=decomp_period*6
+        decomp_mode = 'multiplicative'
         # 季节项
         print("to compute seasonal of train_X...")
         print(train_X.shape)
@@ -654,8 +659,11 @@ def load_isruc_two_view(mode="train",dataset="ISRUC",decompose_mode=None):
         for sample in train_X_sea :
             dims_list=[]
             for dims in sample:
-                result = seasonal_decompose(dims, model='additive', period=30)
+                dims = dims.abs() + 0.00001
+                result = seasonal_decompose(dims, model=decomp_mode, period=decomp_period)
                 trend = pd.Series(result.seasonal)
+                if dataset=="ISRUC":
+                    trend=pd.Series(result.resid)
                 trend = trend.ffill().bfill()
                 trend = trend.to_numpy()
                 dims_list.append(trend)
@@ -674,8 +682,11 @@ def load_isruc_two_view(mode="train",dataset="ISRUC",decompose_mode=None):
         for sample in test_X_sea :
             dims_list=[]
             for dims in sample:
-                result = seasonal_decompose(dims, model='additive', period=30)
+                dims = dims.abs() + 0.00001
+                result = seasonal_decompose(dims, model=decomp_mode, period=decomp_period)
                 trend = pd.Series(result.seasonal)
+                if dataset=="ISRUC":
+                    trend=pd.Series(result.resid)
                 trend = trend.ffill().bfill()
                 trend = trend.to_numpy()
                 dims_list.append(trend)
@@ -696,6 +707,8 @@ def load_isruc_two_view(mode="train",dataset="ISRUC",decompose_mode=None):
         print(train_X.shape)
         print(train_X_fft.shape)
         print(train_X_sea.shape)
+    else:
+        train_X_sea,test_X_sea = None,None
     print("train_X.shape",train_X.shape)
     print("train_X_fft.shape",train_X_fft.shape)
     print("train_X_sea.shape",train_X_sea.shape)
@@ -896,12 +909,11 @@ def load_roadbank_two_view(mode="train",dataset="RoadBank"):
 
 
 
-def load_uea_two_view(mode="train",dataset="SelfRegulationSCP1"):
+def load_uea_two_view(mode="train",_type="UEA",dataset="SelfRegulationSCP1"):
     # train_X, train_y, test_X, test_y = load_HAR()
     # train_X_fft, _, test_X_fft, _ = load_HAR_fft()
     # train_X_sea, _, test_X_sea, _ = load_HAR_seasonal()
-    dataset = "MotorImagery"
-    data_path = f"/workspace/CA-TCC/data/UEA/{dataset}/"
+    data_path = f"/workspace/CA-TCC/data/{_type}/{dataset}/"
     if mode!="train":
         train_ = torch.load(data_path + f"train_{mode}.pt")
     else:
@@ -998,18 +1010,21 @@ def load_uea_two_view(mode="train",dataset="SelfRegulationSCP1"):
 
 
 def get_data_loader(args):
-    if args.dataset in ["HAR","Epilepsy","ISRUC"]:
+    if args.dataloader in ["HAR","Epilepsy","ISRUC",'FordA']:
         train_data, train_labels, test_data, test_labels = load_isruc_two_view(args.data_perc,args.dataset,args.decomp_mode)
 
-    if args.dataset == 'SleepEDF':
+    if args.dataloader == 'SleepEDF':
         train_data, train_labels, test_data, test_labels = load_EEG_two_view(args.data_perc)
 
-    if args.dataset == 'RoadBank' or args.dataset == "Bridge":
+    if args.dataloader == 'RoadBank' or args.dataloader == "Bridge":
         train_data, train_labels, test_data, test_labels = load_roadbank_two_view(args.data_perc,args.dataset)
     
-    if args.dataset == 'Waveform':
+    if args.dataloader == 'Waveform':
         train_data, train_labels, test_data, test_labels = load_Waveform_two_view()
-    if args.dataset == 'UEA':
-        train_data, train_labels, test_data, test_labels = load_uea_two_view()
+    if args.dataloader == 'UEA':
+        train_data, train_labels, test_data, test_labels = load_uea_two_view(args.data_perc,"UEA",args.dataset)
+    
+    if args.dataloader == 'UCR':
+        train_data, train_labels, test_data, test_labels = load_uea_two_view(args.data_perc,"UCR",args.dataset)
     
     return train_data, train_labels, test_data, test_labels

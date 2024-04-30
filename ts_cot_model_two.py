@@ -30,23 +30,23 @@ class TS_CoT(nn.Module):
         self.hidden_dims = hidden_dims
         self.output_dims = output_dims
 
-        if args.dataset == 'SleepEDF':
+        if args.dataloader == 'SleepEDF':
             self.tem_encoder = Conv_Pyram_model_EDF(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.fre_encoder = Conv_Pyram_model_EDF(input_dims=input_dims, output_dims=output_dims).to(self.device)
-        elif args.dataset == 'HAR' or args.dataset == 'UEA':
+        elif args.dataloader == 'HAR' or args.dataloader == 'UEA' or args.dataloader == 'UCR':
             self.tem_encoder = Conv_Pyram_model_HAR(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.fre_encoder = Conv_Pyram_model_HAR(input_dims=input_dims, output_dims=output_dims).to(self.device)
             
-        elif args.dataset == 'Epilepsy':
+        elif args.dataloader == 'Epilepsy':
             self.tem_encoder = Conv_Pyram_model_Epi(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.fre_encoder = Conv_Pyram_model_Epi(input_dims=input_dims, output_dims=output_dims).to(self.device)
-        elif args.dataset == 'Waveform':
+        elif args.dataloader == 'Waveform':
             self.tem_encoder = Conv_Pyram_model_Epi(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.fre_encoder = Conv_Pyram_model_Epi(input_dims=input_dims, output_dims=output_dims).to(self.device)
-        elif args.dataset == 'ISRUC':
+        elif args.dataloader == 'ISRUC':
             self.tem_encoder = Conv_Pyram_model_ISRUC(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.fre_encoder = Conv_Pyram_model_ISRUC(input_dims=input_dims, output_dims=output_dims).to(self.device)
-        elif args.dataset == 'RoadBank' or args.dataset == "Bridge":
+        elif args.dataloader == 'RoadBank' or args.dataloader == "Bridge":
             self.tem_encoder = Conv_Pyram_model_ISRUC(input_dims=input_dims, output_dims=output_dims).to(self.device)
             self.fre_encoder = Conv_Pyram_model_ISRUC(input_dims=input_dims, output_dims=output_dims).to(self.device)
 
@@ -69,17 +69,19 @@ class TS_CoT(nn.Module):
         cluster_result_fre = {'im2cluster': [], 'centroids': [], 'density': [],  'ma_centroids':[]}
 
         for num_cluster in self.args.num_cluster:
-            cluster_result_tem['im2cluster'].append(torch.zeros(len(train_loader), dtype=torch.long).cuda())
-            cluster_result_fre['im2cluster'].append(torch.zeros(len(train_loader), dtype=torch.long).cuda())
-            cluster_result_tem['centroids'].append(
-                torch.zeros(int(num_cluster), train_data[0].shape[1] * self.args.repr_dims).cuda())
-            cluster_result_fre['centroids'].append(
-                torch.zeros(int(num_cluster), train_data[0].shape[1] * self.args.repr_dims).cuda())
-            cluster_result_tem['density'].append(torch.zeros(int(num_cluster)).cuda())
-            cluster_result_fre['density'].append(torch.zeros(int(num_cluster)).cuda())
+            # print(len(train_loader))
+            # cluster_result_tem['im2cluster'].append(torch.zeros(len(train_loader), dtype=torch.long).cuda())
+            # cluster_result_fre['im2cluster'].append(torch.zeros(len(train_loader), dtype=torch.long).cuda())
+            # print(train_data[0].shape[1])
+            # cluster_result_tem['centroids'].append(
+            #     torch.zeros(int(num_cluster), train_data[0].shape[1] * self.args.repr_dims).cuda())
+            # cluster_result_fre['centroids'].append(
+            #     torch.zeros(int(num_cluster), train_data[0].shape[1] * self.args.repr_dims).cuda())
+            # cluster_result_tem['density'].append(torch.zeros(int(num_cluster)).cuda())
+            # cluster_result_fre['density'].append(torch.zeros(int(num_cluster)).cuda())
             cluster_result_tem = run_kmeans(features_tem, self.args, last_clusters)
             cluster_result_fre = run_kmeans(features_fre, self.args, last_clusters)
-
+        #print(cluster_result_tem['im2cluster'])
         for tmp in range(len(self.args.num_cluster)):
             tem_im2cluster = cluster_result_tem['im2cluster'][tmp]
             fre_im2cluster = cluster_result_fre['im2cluster'][tmp]
@@ -136,7 +138,6 @@ class TS_CoT(nn.Module):
 
         cluster_result_tem = run_kmeans(features_tem, self.args, last_clusters)
         cluster_result_fre = run_kmeans(features_fre, self.args, last_clusters)
-        print("*"*100)
         for tmp in range(len(self.args.num_cluster)):
             
             tem_im2cluster = cluster_result_tem['im2cluster'][tmp]
@@ -281,7 +282,6 @@ class TS_CoT(nn.Module):
                 _, _, _, fre_z = self.fre_encoder(sample_fre.float())
 
                 out = torch.cat((tem_z.squeeze(-1), fre_z.squeeze(-1)), dim=1)
-
                 output.append(out)
 
             output = torch.cat(output, dim=0)

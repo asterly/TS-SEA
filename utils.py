@@ -129,7 +129,9 @@ def run_kmeans(x, args, last_clusters = None):
         # intialize faiss clustering parameters
         d = x.shape[1]
         k = int(num_cluster)
+
         clus = faiss.Clustering(d, k)
+
         # clus.verbose = True
         clus.niter = 20
         clus.nredo = 1
@@ -142,17 +144,19 @@ def run_kmeans(x, args, last_clusters = None):
             cen2 = faiss.FloatVector()
             faiss.copy_array_to_vector(cen.reshape(-1), cen2)
             clus.centroids = cen2
-
-        res = faiss.StandardGpuResources()
-        cfg = faiss.GpuIndexFlatConfig()
-        cfg.useFloat16 = False
-        cfg.device = args.gpu
-        cfg.verbose = True
-        index = faiss.GpuIndexFlatL2(res, d, cfg)
+        #res = faiss.StandardGpuResources()
+        #cfg = faiss.GpuIndexFlatConfig()
+        #cfg.useFloat16 = False
+        #cfg.device = args.gpu
+        #cfg.verbose = True
+        #print("index")
+        index = faiss.IndexFlatL2(d)
+        #print("index2")
         clus.train(x, index)
         D, I = index.search(x, k)
         im2cluster = [int(n[0]) for n in I]
         centroids = faiss.vector_to_array(clus.centroids).reshape(k, d)
+        #print("centroids")
         Dcluster = [[] for c in range(k)]
         for im, i in enumerate(im2cluster):
             Dcluster[i].append(D[im][0])
@@ -166,8 +170,7 @@ def run_kmeans(x, args, last_clusters = None):
         for i, dist in enumerate(Dcluster):
             if len(dist) <= 1:
                 density[i] = dmax
-        if np.isnan(density).any():
-            print(density)
+
         density = density.clip(np.percentile(density, 10),
                                np.percentile(density, 90))  # clamp extreme values for stability
         density = args.temperature * density / density.mean()  # scale the mean to temperature
@@ -194,7 +197,7 @@ def run_kmeans(x, args, last_clusters = None):
 
     return results
 
-import copy 
+
 def prototype_loss_cotrain(out, index, cluster_result=None, args=None, crop_offset=None, crop_eleft=None, crop_right=None, crop_l=None):
     criterion = nn.CrossEntropyLoss().cuda()
     if len(out.shape) == 2:
@@ -209,7 +212,6 @@ def prototype_loss_cotrain(out, index, cluster_result=None, args=None, crop_offs
             prototypes = torch.unsqueeze(prototypes, 0)
             prototypes = prototypes.repeat(out.shape[0], 1, 1)
             prototypes = prototypes.permute(0, 2, 1)
-            prototypess = copy.copy(prototypes)
             prototypes /= density
 
 
@@ -224,8 +226,7 @@ def prototype_loss_cotrain(out, index, cluster_result=None, args=None, crop_offs
 
             logits_proto_instance = torch.matmul(out2, prototypes2).squeeze(1)
             proto_loss_instance = criterion(logits_proto_instance, pos_proto_id)
-            # if torch.isnan(proto_loss_instance).any():
-            #     print(out2,prototypes2,retain_index,density,prototypess[retain_index])
+
             loss_proto = proto_loss_instance
             for cl in range(pro.shape[0]):
                 if (pos_proto_id == cl).sum() > 0:

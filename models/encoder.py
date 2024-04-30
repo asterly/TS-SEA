@@ -73,6 +73,7 @@ class Conv_Pyram_model(nn.Module):
         return x1, x2, x3, z_norm
 
 
+
 class Conv_Pyram_model_EDF(nn.Module):
     def __init__(self, input_dims, output_dims, dropout=0.0):
         super().__init__()
@@ -124,7 +125,6 @@ class Conv_Pyram_model_EDF(nn.Module):
         z = nn.functional.max_pool1d(x3, x3.shape[2])
         z_norm = nn.functional.normalize(z, p=2, dim=1)
         return x1, x2, x3, z_norm
-
 
 class Conv_Pyram_model_HAR_1(nn.Module):
     def __init__(self, input_dims, output_dims, hidden_dims=64, depth=10, mask_mode='binomial', dropout=0.0):
